@@ -1,0 +1,75 @@
+# ============================================================
+#  FlowMind — Android project .gitignore
+#  SECURITY: Never commit credentials or local config files
+# ============================================================
+
+# ── Local / machine-specific ─────────────────────────────────
+local.properties
+*.local.properties
+
+# ── Firebase / Google credentials (NEVER commit these) ───────
+google-services.json
+google-services*.json
+GoogleService-Info.plist
+*.p12
+*.jks
+*.keystore
+keystore.properties
+release-keystore.properties
+
+# ── API keys / secrets ────────────────────────────────────────
+secrets.properties
+api-keys.properties
+*.env
+.env
+.env.*
+
+# ── Android build artefacts ───────────────────────────────────
+build/
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+*.class
+
+# ── Gradle caches ─────────────────────────────────────────────
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+gradle.properties.bak
+
+# ── IntelliJ / Android Studio ────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+.navigation/
+
+# ── App module .idea folder (machine-specific IDE state) ──────
+app/.idea/
+app/.gradle/
+
+# ── Duplicate / backup gradle folder ─────────────────────────
+.gradle_backup/
+.idea_backup/
+
+# ── Test outputs ──────────────────────────────────────────────
+test-results/
+.test-results/
+lint-results/
+reports/
+
+# ── macOS / Windows ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Node (Firebase Functions) ─────────────────────────────────
+firebase/functions/node_modules/
+firebase/functions/.env
+firebase/functions/serviceAccountKey.json
