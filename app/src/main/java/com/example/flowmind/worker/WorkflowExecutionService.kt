@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -19,13 +20,14 @@ class WorkflowExecutionService : Service() {
 
     @Inject lateinit var orchestrator: WorkflowOrchestrator
     
-    private val serviceJob = Job()
-    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private var serviceJob = Job()
+    private var serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
 
     companion object {
         const val CHANNEL_ID = "flowmind_execution_channel"
         const val NOTIFICATION_ID = 1001
         const val ACTION_START = "ACTION_START_WORKFLOW"
+        const val ACTION_STOP = "ACTION_STOP_WORKFLOW"
         const val EXTRA_WORKFLOW_ID = "EXTRA_WORKFLOW_ID"
     }
 
@@ -35,11 +37,32 @@ class WorkflowExecutionService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val workflowId = intent?.getStringExtra(EXTRA_WORKFLOW_ID) ?: return START_NOT_STICKY
+        val action = intent?.action
+        
+        if (action == ACTION_STOP) {
+            serviceJob.cancel()
+            updateNotification("Workflow Cancelled")
+            stopForeground(STOP_FOREGROUND_DETACH)
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-        if (intent?.action == ACTION_START) {
+        if (action == ACTION_START) {
+            val workflowId = intent.getStringExtra(EXTRA_WORKFLOW_ID) ?: return START_NOT_STICKY
+            
+            // Reinitialize if previously cancelled
+            if (serviceJob.isCancelled) {
+                serviceJob = Job()
+                serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+            }
+            
             val notification = createNotification("Executing workflow...")
-            startForeground(NOTIFICATION_ID, notification)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
 
             serviceScope.launch {
                 executeWorkflow(workflowId)
@@ -54,8 +77,15 @@ class WorkflowExecutionService : Service() {
             updateNotification("Loading AI Models...")
             delay(1000)
             
-            updateNotification("Running OCR Step...")
-            orchestrator.executeStep("OCR", "Sample Data")
+            updateNotification("Running Step: OCR...")
+            orchestrator.executeStep(
+                stepId = "step_ocr_1",
+                taskType = "OCR",
+                inputData = "Sample Data",
+                isPrivateData = false,
+                hasNetwork = true,
+                batteryLow = false
+            )
             
             updateNotification("Workflow Complete!")
             delay(2000)
@@ -63,6 +93,9 @@ class WorkflowExecutionService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             
+        } catch (e: CancellationException) {
+            // Handled in onStartCommand ACTION_STOP
+            throw e
         } catch (e: Exception) {
             updateNotification("Error executing workflow.")
             stopForeground(STOP_FOREGROUND_DETACH)
@@ -71,9 +104,8 @@ class WorkflowExecutionService : Service() {
     }
 
     private fun createNotification(contentText: String): Notification {
-        // Create an Intent to stop the workflow from the notification
         val stopIntent = Intent(this, WorkflowExecutionService::class.java).apply {
-            action = "ACTION_STOP_WORKFLOW"
+            action = ACTION_STOP
         }
         val stopPendingIntent = android.app.PendingIntent.getService(
             this, 0, stopIntent, android.app.PendingIntent.FLAG_IMMUTABLE
@@ -84,7 +116,6 @@ class WorkflowExecutionService : Service() {
             .setContentTitle("FlowMind Automation")
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // ADDED: Single notification controllable action!
             .addAction(android.R.drawable.ic_delete, "Stop Workflow", stopPendingIntent)
             .build()
     }

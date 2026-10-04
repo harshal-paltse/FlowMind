@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    // alias(libs.plugins.googleServices)
+    alias(libs.plugins.googleServices)
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -22,6 +22,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "API_BASE", "\"https://flowmind-api.flowmind-hp.workers.dev\"")
     }
 
     buildTypes {
@@ -59,7 +61,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-
+    implementation("androidx.compose.material:material-icons-extended")
     // Navigation & Hilt
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
@@ -78,6 +80,24 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.appcheck)
+    implementation(libs.firebase.messaging)
+
+    // HTTP client for Cloudflare Worker
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
+    // Google Sign-In
+    implementation(libs.google.auth)
+
+    // CameraX
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
+    // Hilt + WorkManager
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     // WorkManager & DataStore
     implementation(libs.androidx.work.runtime.ktx)
@@ -91,8 +111,12 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.tflite.lite)
     implementation(libs.tflite.gpu)
+    implementation(libs.tflite.gpu.api)
     implementation(libs.tflite.support)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    
+    // Testing
+    testImplementation(libs.junit)
 }
 
 // Dummy task to appease Android Studio sync for this specific module
