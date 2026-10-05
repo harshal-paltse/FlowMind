@@ -42,7 +42,8 @@ data class DiagState(
         DiagCheck("infer",  "/v1/infer call"),
         DiagCheck("ocr",    "On-device OCR (ML Kit)"),
         DiagCheck("room",   "Room DB read/write"),
-        DiagCheck("notif",  "Notification permission")
+        DiagCheck("notif",  "Notification permission"),
+        DiagCheck("fcm",    "FCM push token")
     ),
     val running: Boolean = false,
     val allPass: Boolean = false
@@ -60,6 +61,12 @@ class DiagnosticsViewModel @Inject constructor(
     private val _state = MutableStateFlow(DiagState())
     val state: StateFlow<DiagState> = _state.asStateFlow()
 
+    private var retryCount = 0
+
+    /**
+     * Runs all diagnostic checks sequentially.
+     * No-ops if a run is already in progress.
+     */
     fun runAll() {
         if (_state.value.running) return
         _state.value = DiagState(running = true)
@@ -69,9 +76,28 @@ class DiagnosticsViewModel @Inject constructor(
             runCheck("ocr")   { checkOcr() }
             runCheck("room")  { checkRoom() }
             runCheck("notif") { checkNotif() }
+            runCheck("fcm")   { checkFcmToken() }
             val all = _state.value.checks.all { it.status == CheckStatus.PASS }
             _state.value = _state.value.copy(running = false, allPass = all)
+            retryCount = 0
         }
+    }
+
+    /**
+     * Resets all checks to [CheckStatus.PENDING] and increments the retry counter.
+     * Call before invoking [runAll] again to show a fresh run.
+     */
+    fun reset() {
+        retryCount++
+        _state.value = DiagState()
+    }
+
+    /**
+     * Convenience function: reset then immediately re-run all checks.
+     */
+    fun retry() {
+        reset()
+        runAll()
     }
 
     private suspend fun runCheck(id: String, block: suspend () -> String) {
@@ -134,5 +160,11 @@ class DiagnosticsViewModel @Inject constructor(
             == PackageManager.PERMISSION_GRANTED
         ) "Granted"
         else error("POST_NOTIFICATIONS not granted — go to App Settings → Notifications")
+    }
+
+    private suspend fun checkFcmToken(): String {
+        val token = fcm.getToken().getOrElse { throw it }
+        if (token.isBlank()) error("FCM token is blank — check google-services.json")
+        return "Token=${token.take(16)}…"
     }
 }
