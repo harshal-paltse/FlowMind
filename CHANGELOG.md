@@ -24,9 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `retry()` and `reset()` in `DiagnosticsViewModel` for re-running checks
 - `compositeScore`, `isCpuCompatible`, `summary` computed properties on `ModelCandidate`
 - `CONTRIBUTING.md` with setup guide, branching strategy and PR checklist
+- **`DonutChart`** animated composable with sweep-in animation and legend to `CustomCharts`
+- Gradient vertical fill on `SimpleBarChart` bars for polished UI
+- `chartHeight` parameter on `SimpleBarChart` for flexible sizing
+- Multi-page support in `PdfGenerator` — long reports automatically overflow to new A4 pages
+- Branded title styling (deep indigo) and page-number footer in `PdfGenerator`
+- `PAGE_WIDTH`, `PAGE_HEIGHT`, `MARGIN_*` constants extracted to `PdfGenerator.Companion`
+- Real SHA-256 file integrity verification replacing simulation stub in `ModelDownloader`
+- Retry with exponential back-off (up to `maxRetries`) in `ModelDownloader`
+- `maxRetries` constructor parameter on `ModelDownloader`
+- `rotateDatabasePassphrase()` for on-demand key rotation in `SecurityManager`
+- `storeToken()`, `retrieveToken()`, `clearToken()` helpers in `SecurityManager`
+- `clearAllSecrets()` secure wipe for sign-out / account-deletion flows in `SecurityManager`
+- Lazy initialisation of `MasterKey` and `EncryptedSharedPreferences` in `SecurityManager`
 
 ### Changed
-- Standardised KDoc across all domain models and ViewModels
+- Standardised KDoc across all domain models, ViewModels, and utility classes
+- `SecurityManager.encryptedPrefs` converted from `val` initialised in-body to lazy delegate
 
 ---
 
