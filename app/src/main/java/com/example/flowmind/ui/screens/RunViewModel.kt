@@ -41,6 +41,16 @@ sealed class RunUiState {
     data class Failure(val reason: String) : RunUiState()
 }
 
+/**
+ * ViewModel backing the [ResultScreen].
+ *
+ * Drives the step-by-step animated workflow timeline by:
+ * 1. Parsing node titles from the persisted [Workflow.nodesJson].
+ * 2. Executing each step via [WorkflowOrchestrator], emitting [RunUiState.Running]
+ *    updates for real-time UI feedback.
+ * 3. Persisting the completed [RunRecord] to [RunRecordRepository].
+ * 4. Transitioning to [RunUiState.Success] or [RunUiState.Failure].
+ */
 @HiltViewModel
 class RunViewModel @Inject constructor(
     private val orchestrator: WorkflowOrchestrator,
@@ -48,8 +58,17 @@ class RunViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<RunUiState>(RunUiState.Idle)
+    /** Observable execution state; collect in Compose with [collectAsState]. */
     val state: StateFlow<RunUiState> = _state.asStateFlow()
 
+    /**
+     * Starts executing [workflow], updating [state] as each step progresses.
+     *
+     * No-ops if a run is already in progress. On completion, persists a
+     * [RunRecord] and transitions to [RunUiState.Success] or [RunUiState.Failure].
+     *
+     * @param workflow The [Workflow] whose nodes should be executed in sequence.
+     */
     fun runWorkflow(workflow: Workflow) {
         if (_state.value is RunUiState.Running) return
 
@@ -114,6 +133,7 @@ class RunViewModel @Inject constructor(
         }
     }
 
+    /** Resets [state] to [RunUiState.Idle], allowing the screen to be re-used. */
     fun reset() { _state.value = RunUiState.Idle }
 
     // ── helpers ─────────────────────────────────────────────────────────────

@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `storeToken()`, `retrieveToken()`, `clearToken()` helpers in `SecurityManager`
 - `clearAllSecrets()` secure wipe for sign-out / account-deletion flows in `SecurityManager`
 - Lazy initialisation of `MasterKey` and `EncryptedSharedPreferences` in `SecurityManager`
+- Full KDoc, `sendEmailSummary`, `sendWorkflowExport`, and `ping` to `FirebaseFunctionsManager`
+- Full KDoc to `ScheduleViewModel` (`ScheduleUiEvent`, `scheduleOnce`, `scheduleRepeating`, `cancelSchedule`, `sendTestNotification`)
+- Full KDoc to `RunViewModel` (class-level, `runWorkflow`, `reset`, `state`)
+- `ReportsViewModel.csvExport` now documented with `@property` KDoc
 
 ### Changed
 - Standardised KDoc across all domain models, ViewModels, and utility classes
