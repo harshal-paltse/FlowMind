@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Full KDoc to `ScheduleViewModel` (`ScheduleUiEvent`, `scheduleOnce`, `scheduleRepeating`, `cancelSchedule`, `sendTestNotification`)
 - Full KDoc to `RunViewModel` (class-level, `runWorkflow`, `reset`, `state`)
 - `ReportsViewModel.csvExport` now documented with `@property` KDoc
+- Per-check configurable timeout (`checkTimeoutMs = 5 s`) in `DiagnosticsViewModel` using `withTimeoutOrNull`
+- `lastRunTimestamp: Long?` field on `DiagState` recording epoch-ms of last completed run
+- `clearChecks()` in `DiagnosticsViewModel` — resets state to PENDING without incrementing retry counter
+- Full KDoc to `AuthViewModel`, `SignInState` sealed class and all its variants
+- `displayName: String?` accessor on `AuthViewModel` forwarding to repository
+- `signOut()` in `AuthViewModel` — delegates to repository and resets state to `SignInState.Idle`
+- `signInState` now backed by `asStateFlow()` for safe external exposure
 
 ### Changed
 - Standardised KDoc across all domain models, ViewModels, and utility classes
