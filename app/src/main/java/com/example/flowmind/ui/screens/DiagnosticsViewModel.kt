@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 private const val TAG = "Diagnostics"
@@ -46,7 +47,9 @@ data class DiagState(
         DiagCheck("fcm",    "FCM push token")
     ),
     val running: Boolean = false,
-    val allPass: Boolean = false
+    val allPass: Boolean = false,
+    /** Epoch-ms timestamp of when the last full run completed, or null if never run. */
+    val lastRunTimestamp: Long? = null
 )
 
 @HiltViewModel
@@ -63,6 +66,9 @@ class DiagnosticsViewModel @Inject constructor(
 
     private var retryCount = 0
 
+    /** Timeout in milliseconds applied to each individual diagnostic check. */
+    private val checkTimeoutMs: Long = 5_000L
+
     /**
      * Runs all diagnostic checks sequentially.
      * No-ops if a run is already in progress.
@@ -78,7 +84,11 @@ class DiagnosticsViewModel @Inject constructor(
             runCheck("notif") { checkNotif() }
             runCheck("fcm")   { checkFcmToken() }
             val all = _state.value.checks.all { it.status == CheckStatus.PASS }
-            _state.value = _state.value.copy(running = false, allPass = all)
+            _state.value = _state.value.copy(
+                running = false,
+                allPass = all,
+                lastRunTimestamp = System.currentTimeMillis()
+            )
             retryCount = 0
         }
     }
@@ -100,17 +110,33 @@ class DiagnosticsViewModel @Inject constructor(
         runAll()
     }
 
+    /**
+     * Resets all checks to [CheckStatus.PENDING] without incrementing the retry counter.
+     * Use this for an explicit "clear" action in the UI.
+     */
+    fun clearChecks() {
+        _state.value = DiagState()
+    }
+
     private suspend fun runCheck(id: String, block: suspend () -> String) {
         update(id, CheckStatus.RUNNING, "")
-        runCatching { block() }
-            .onSuccess { detail ->
-                Log.i(TAG, "PASS $id: $detail")
-                update(id, CheckStatus.PASS, detail)
-            }
-            .onFailure { e ->
-                Log.e(TAG, "FAIL $id", e)
-                update(id, CheckStatus.FAIL, e.message ?: "Unknown error")
-            }
+        val result = withTimeoutOrNull(checkTimeoutMs) {
+            runCatching { block() }
+        }
+        if (result == null) {
+            Log.w(TAG, "TIMEOUT $id (>${checkTimeoutMs}ms)")
+            update(id, CheckStatus.FAIL, "Timed out after ${checkTimeoutMs}ms")
+        } else {
+            result
+                .onSuccess { detail ->
+                    Log.i(TAG, "PASS $id: $detail")
+                    update(id, CheckStatus.PASS, detail)
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "FAIL $id", e)
+                    update(id, CheckStatus.FAIL, e.message ?: "Unknown error")
+                }
+        }
     }
 
     private fun update(id: String, status: CheckStatus, detail: String) {
