@@ -20,7 +20,11 @@ class WorkflowExecutionService : Service() {
 
     @Inject lateinit var orchestrator: WorkflowOrchestrator
     
-    private var serviceJob = Job()
+    /**
+     * Supervisor job so that individual coroutine failures don't cancel the
+     * entire scope; replaced atomically each time the service (re-)starts.
+     */
+    private var serviceJob = SupervisorJob()
     private var serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
 
     companion object {
@@ -50,9 +54,9 @@ class WorkflowExecutionService : Service() {
         if (action == ACTION_START) {
             val workflowId = intent.getStringExtra(EXTRA_WORKFLOW_ID) ?: return START_NOT_STICKY
             
-            // Reinitialize if previously cancelled
+            // Reinitialize atomically if the previous job was cancelled
             if (serviceJob.isCancelled) {
-                serviceJob = Job()
+                serviceJob = SupervisorJob()
                 serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
             }
             
@@ -75,30 +79,29 @@ class WorkflowExecutionService : Service() {
     private suspend fun executeWorkflow(workflowId: String) {
         try {
             updateNotification("Loading AI Models...")
-            delay(1000)
-            
-            updateNotification("Running Step: OCR...")
-            orchestrator.executeStep(
-                stepId = "step_ocr_1",
-                taskType = "OCR",
-                inputData = "Sample Data",
-                isPrivateData = false,
-                hasNetwork = true,
-                batteryLow = false
+            delay(500)
+
+            updateNotification("Running workflow steps...")
+            orchestrator.executeStepCloud(
+                stepId     = "svc_${workflowId}",
+                capability = "text",
+                text       = "Execute background workflow: $workflowId"
             )
-            
+
             updateNotification("Workflow Complete!")
-            delay(2000)
-            
+            delay(1500)
+
+            // Remove notification entirely on clean completion
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
-            
+
         } catch (e: CancellationException) {
-            // Handled in onStartCommand ACTION_STOP
+            // Propagate so WorkManager / the scope can clean up correctly
             throw e
         } catch (e: Exception) {
-            updateNotification("Error executing workflow.")
-            stopForeground(STOP_FOREGROUND_DETACH)
+            updateNotification("Error: ${e.message?.take(60) ?: "Unknown error"}")
+            // Also remove notification on error — avoids an orphaned status-bar entry
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
     }
