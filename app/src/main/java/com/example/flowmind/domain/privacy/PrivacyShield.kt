@@ -1,32 +1,53 @@
 package com.example.flowmind.domain.privacy
 
-import java.util.regex.Pattern
-
+/**
+ * Utility object for detecting and redacting personally identifiable
+ * information (PII) before data is sent to cloud inference endpoints.
+ *
+ * All patterns are compiled once at class-load time for efficiency.
+ */
 object PrivacyShield {
-    
-    // Simple regex for SSN (XXX-XX-XXXX)
-    private val SSN_PATTERN = Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b")
-    
-    // Simple regex for Credit Card (16 digits)
-    private val CREDIT_CARD_PATTERN = Pattern.compile("\\b(?:\\d[ -]*?){13,16}\\b")
-    
-    // Simple regex for Emails
-    private val EMAIL_PATTERN = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b")
 
-    fun redactSensitiveInfo(input: String): String {
-        var redacted = input
-        
-        redacted = SSN_PATTERN.matcher(redacted).replaceAll("[REDACTED_SSN]")
-        redacted = CREDIT_CARD_PATTERN.matcher(redacted).replaceAll("[REDACTED_CC]")
-        redacted = EMAIL_PATTERN.matcher(redacted).replaceAll("[REDACTED_EMAIL]")
-        
-        return redacted
-    }
+    /** Matches US Social Security Numbers in XXX-XX-XXXX format. */
+    private val SSN_REGEX = Regex("""\b\d{3}-\d{2}-\d{4}\b""")
 
-    fun isSafeForCloud(input: String): Boolean {
-        // If the original input contains sensitive info, we flag it as not safe for raw cloud processing.
-        val hasSsn = SSN_PATTERN.matcher(input).find()
-        val hasCc = CREDIT_CARD_PATTERN.matcher(input).find()
-        return !(hasSsn || hasCc)
-    }
+    /**
+     * Matches common credit/debit card number formats:
+     * 13–16 digits optionally separated by spaces or dashes.
+     */
+    private val CREDIT_CARD_REGEX = Regex("""\b(?:\d[ -]*?){13,16}\b""")
+
+    /** Matches standard e-mail addresses. */
+    private val EMAIL_REGEX = Regex("""\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b""")
+
+    /** Matches US/international phone numbers (e.g. +1-800-555-0199, (555) 123-4567). */
+    private val PHONE_REGEX = Regex("""(\+?\d[\d\s\-().]{7,}\d)""")
+
+    /** Matches IPv4 addresses. */
+    private val IPV4_REGEX = Regex("""\b(?:\d{1,3}\.){3}\d{1,3}\b""")
+
+    /**
+     * Replaces all detected PII patterns in [input] with labelled placeholders.
+     *
+     * @param input Raw text that may contain sensitive information.
+     * @return A copy of [input] with PII replaced by `[REDACTED_*]` tokens.
+     */
+    fun redactSensitiveInfo(input: String): String = input
+        .replace(SSN_REGEX,         "[REDACTED_SSN]")
+        .replace(CREDIT_CARD_REGEX, "[REDACTED_CC]")
+        .replace(EMAIL_REGEX,       "[REDACTED_EMAIL]")
+        .replace(PHONE_REGEX,       "[REDACTED_PHONE]")
+        .replace(IPV4_REGEX,        "[REDACTED_IP]")
+
+    /**
+     * Returns `true` when [input] contains no PII patterns that should be
+     * kept off cloud servers without prior redaction.
+     *
+     * @param input Raw text to inspect.
+     */
+    fun isSafeForCloud(input: String): Boolean =
+        !SSN_REGEX.containsMatchIn(input) &&
+        !CREDIT_CARD_REGEX.containsMatchIn(input) &&
+        !EMAIL_REGEX.containsMatchIn(input) &&
+        !PHONE_REGEX.containsMatchIn(input)
 }
