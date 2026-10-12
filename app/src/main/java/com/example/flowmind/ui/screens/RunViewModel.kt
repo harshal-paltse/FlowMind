@@ -138,26 +138,52 @@ class RunViewModel @Inject constructor(
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
+    /**
+     * Extracts node titles from a JSON array string produced by [BuilderViewModel].
+     *
+     * Handles both compact (`["A","B"]`) and pretty-printed formats. Falls back
+     * to a default three-step list when [json] is blank or unparseable.
+     *
+     * @param json Raw JSON such as `["Trigger","AI Process","Action"]`.
+     * @return Ordered list of non-blank node title strings.
+     */
     private fun parseNodeTitles(json: String): List<String> {
-        // Simple regex-free extraction from ["A","B","C"]
-        return json.trim()
-            .removePrefix("[").removeSuffix("]")
-            .split(",")
+        val trimmed = json.trim()
+        if (trimmed == "[]" || trimmed.isBlank()) {
+            return listOf("Trigger", "AI Process", "Action")
+        }
+        // Strip outer brackets, then split on comma-quote boundaries to avoid
+        // splitting on commas that may appear inside a title string.
+        val inner = trimmed.removePrefix("[").removeSuffix("]")
+        val titles = inner
+            .split(Regex("\",\\s*\""))          // split on "," with optional whitespace
             .map { it.trim().removeSurrounding("\"") }
             .filter { it.isNotBlank() }
-            .ifEmpty { listOf("Trigger", "AI Process", "Action") }
+        return titles.ifEmpty { listOf("Trigger", "AI Process", "Action") }
     }
 
+    /**
+     * Maps a node [name] to the Cloudflare AI capability string it should invoke.
+     *
+     * Matching is case-insensitive. More-specific keywords (e.g. "STT") are
+     * checked before broader ones (e.g. "Audio") to avoid accidental short-
+     * circuiting.
+     *
+     * @param name The [TimelineStep.name] to classify.
+     * @return A capability key such as `"ocr"`, `"vision"`, `"audio_transcribe"`,
+     *         `"text"`, or `"local"`.
+     */
     private fun capabilityForStep(name: String): String = when {
-        name.contains("OCR",      ignoreCase = true) -> "ocr"
-        name.contains("Vision",   ignoreCase = true) -> "vision"
-        name.contains("STT",      ignoreCase = true) -> "audio_transcribe"
-        name.contains("Audio",    ignoreCase = true) -> "audio_transcribe"
-        name.contains("LLM",      ignoreCase = true) -> "text"
-        name.contains("Summari",  ignoreCase = true) -> "text"
-        name.contains("Trigger",  ignoreCase = true) -> "local"
-        name.contains("Action",   ignoreCase = true) -> "local"
-        name.contains("Transform",ignoreCase = true) -> "local"
-        else                                          -> "text"
+        name.contains("OCR",       ignoreCase = true) -> "ocr"
+        name.contains("Vision",    ignoreCase = true) -> "vision"
+        name.contains("STT",       ignoreCase = true) -> "audio_transcribe"
+        name.contains("Audio",     ignoreCase = true) -> "audio_transcribe"
+        name.contains("Transcrib", ignoreCase = true) -> "audio_transcribe"
+        name.contains("LLM",       ignoreCase = true) -> "text"
+        name.contains("Summari",   ignoreCase = true) -> "text"
+        name.contains("Trigger",   ignoreCase = true) -> "local"
+        name.contains("Action",    ignoreCase = true) -> "local"
+        name.contains("Transform", ignoreCase = true) -> "local"
+        else                                           -> "text"
     }
 }
