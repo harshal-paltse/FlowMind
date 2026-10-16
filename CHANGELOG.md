@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `WorkflowExtensions.kt` — `nodeList()`, `nodeCount()`, `wasEdited()`, `statusLabel()`, `ageInDays()`, `isRecent()` extension functions on `Workflow`
+- `RunRecordExtensions.kt` — `statusLabel()`, `latencyFormatted()`, `runAtFormatted()`, `inferenceLabel()`, `isFast()`, `shareSummary()` extension functions on `RunRecord`
+- `RunAnalytics` singleton — pure, framework-free analytics helpers: `successRate`, `averageLatencyMs`, `medianLatencyMs`, `bestLatencyMs`, `worstLatencyMs`, `runCountByWorkflow`, `localInferenceRate`, `groupByDay`
+- `WorkflowDao.findById()`, `findByName()`, `updateEnabled()`, `countWorkflows()` targeted Room queries
+- `WorkflowRepository.findById()`, `findByName()`, `setEnabled()`, `count()` — exposing new DAO queries
+- `DeviceFitScorer.isCharging()` — battery/cellular penalties now waived or halved when device is plugged in
+- `docs/ARCHITECTURE.md` — comprehensive architecture reference covering layers, data flows, DI, persistence, background work, privacy/security, and AI/ML pipeline
+- `WorkflowValidator.MIN_NODES`, `MAX_NAME_LENGTH` constants
+- `WorkflowValidator.validateName()` — standalone name validator for the builder UI
+- Duplicate step-title guard in `WorkflowValidator.validate()`
+- Action-node presence check in `WorkflowValidator.validate()` — prevents trigger-only workflows
+- Blank-title guard in `WorkflowValidator.validate()`
+- Full KDoc added to `DeviceFitScore` data class and `DeviceFitScorer` class
+
 - `updatedAt` and `isEnabled` fields to `Workflow` entity for lifecycle tracking
 - `errorMessage` and `userNote` fields to `RunRecord` for richer failure diagnostics
 - **Whisper Tiny** speech-to-text model to `ModelRegistry`
