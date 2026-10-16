@@ -11,19 +11,40 @@ import android.os.Environment
 import android.os.StatFs
 import com.example.flowmind.domain.models.MLModel
 
+/**
+ * The result of scoring a single [MLModel] against the current device state.
+ *
+ * @property model       The evaluated model.
+ * @property score       Suitability score from 0 (unusable) to 100 (optimal).
+ * @property reason      Human-readable explanation of all penalties or confirmations.
+ * @property isRejected  When `true` the model cannot run at all (hard constraint failed).
+ */
 data class DeviceFitScore(
     val model: MLModel,
-    val score: Int, // 0 to 100
+    val score: Int,
     val reason: String,
     val isRejected: Boolean
 )
 
+/**
+ * Scores a list of [MLModel] candidates against the real-time state of the device.
+ *
+ * Hard constraints (storage, RAM) immediately reject a model ([DeviceFitScore.isRejected]).
+ * Soft constraints (battery, connectivity, OS version, charging) reduce the score.
+ * Results are returned sorted from best to worst fit.
+ *
+ * @param context Application context; must not be an Activity context.
+ */
 class DeviceFitScorer(private val context: Context) {
 
+    /**
+     * Evaluates each [model] in [models] and returns a ranked [DeviceFitScore] list.
+     */
     fun scoreModels(models: List<MLModel>): List<DeviceFitScore> {
         val availableRamMb = getAvailableRamMb()
         val availableStorageMb = getAvailableStorageMb()
         val batteryPct = getBatteryPercentage()
+        val isCharging = isCharging()
         val isWifi = isWifiConnected()
 
         return models.map { model ->
@@ -41,15 +62,19 @@ class DeviceFitScorer(private val context: Context) {
                 reasons.add("Not enough RAM (${availableRamMb}MB available, needs ${model.requiredRamMb}MB).")
             }
 
-            // Soft constraints
-            if (batteryPct < 20) {
+            // Soft constraints — battery penalty waived when plugged in
+            if (!isCharging && batteryPct < 20) {
                 score -= 30
                 reasons.add("Low battery ($batteryPct%).")
+            } else if (isCharging) {
+                reasons.add("Charging — battery constraint waived.")
             }
-            
+
+            // Large cellular download penalty halved when charging
             if (model.sizeMb > 500 && !isWifi) {
-                score -= 40
-                reasons.add("Large download required over Cellular.")
+                val penalty = if (isCharging) 20 else 40
+                score -= penalty
+                reasons.add("Large download required over Cellular (${penalty}pt penalty).")
             }
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1 && model.supportedAccelerators.contains("NNAPI")) {
@@ -57,7 +82,7 @@ class DeviceFitScorer(private val context: Context) {
                 reasons.add("NNAPI not fully supported on this OS version.")
             }
 
-            if (!isRejected && reasons.isEmpty()) {
+            if (!isRejected && reasons.none { !it.startsWith("Charging") }) {
                 reasons.add("Optimal fit for current device state.")
             } else if (isRejected) {
                 score = 0
@@ -103,5 +128,18 @@ class DeviceFitScorer(private val context: Context) {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    /**
+     * Returns `true` when the device is currently connected to a charger (AC, USB, or wireless).
+     * Falls back to `false` if the battery sticky intent cannot be read.
+     */
+    private fun isCharging(): Boolean {
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
+            context.registerReceiver(null, filter)
+        }
+        val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: return false
+        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL
     }
 }
