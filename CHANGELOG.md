@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `WorkflowSearchHelper` — pure, stateless object providing ranked fuzzy search across workflow names, template IDs, and node JSON; tiers: exact name (100) → starts-with (80) → contains (60) → template ID (40) → node body (20)
+- `NotificationHelper` — centralised notification dispatcher with three typed channels (`flowmind_runs`, `flowmind_scheduler`, `flowmind_alerts`); exposes `notifyRunComplete`, `notifyScheduledTrigger`, `notifyAlert`, and `cancelAll`; `POST_NOTIFICATIONS` `SecurityException` is silently swallowed for Android 13+ compat
 - `WorkflowExtensions.kt` — `nodeList()`, `nodeCount()`, `wasEdited()`, `statusLabel()`, `ageInDays()`, `isRecent()` extension functions on `Workflow`
 - `RunRecordExtensions.kt` — `statusLabel()`, `latencyFormatted()`, `runAtFormatted()`, `inferenceLabel()`, `isFast()`, `shareSummary()` extension functions on `RunRecord`
 - `RunAnalytics` singleton — pure, framework-free analytics helpers: `successRate`, `averageLatencyMs`, `medianLatencyMs`, `bestLatencyMs`, `worstLatencyMs`, `runCountByWorkflow`, `localInferenceRate`, `groupByDay`
@@ -64,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `signInState` now backed by `asStateFlow()` for safe external exposure
 
 ### Changed
+- **`DashboardScreen`** — "My Automations" list now features a live search bar backed by `WorkflowSearchHelper`; typing filters by name/node content, a clear (✕) button resets the query, and an empty-results state with a "Clear search" action is shown when no workflows match
 - Standardised KDoc across all domain models, ViewModels, and utility classes
 - `SecurityManager.encryptedPrefs` converted from `val` initialised in-body to lazy delegate
 

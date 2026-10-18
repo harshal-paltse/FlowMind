@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.flowmind.domain.analytics.WorkflowSearchHelper
 import com.example.flowmind.domain.models.Workflow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,9 +36,13 @@ fun DashboardScreen(
     dashVM: DashboardViewModel = hiltViewModel()
 ) {
     var promptText by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
     val uiState by inferVM.uiState.collectAsState()
     val workflows by dashVM.workflows.collectAsState()
     val journeyStep by dashVM.journeyStep.collectAsState()
+    val filteredWorkflows by remember(workflows, searchQuery) {
+        derivedStateOf { WorkflowSearchHelper.search(workflows, searchQuery) }
+    }
 
     LaunchedEffect(uiState.result) {
         val result = uiState.result ?: return@LaunchedEffect
@@ -151,8 +156,48 @@ fun DashboardScreen(
 
             // ── My Automations header ──
             item {
-                Text("My Automations", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
+                Text(
+                    "My Automations",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            // ── Search bar ──
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search automations…") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    Icons.Filled.Clear,
+                                    contentDescription = "Clear search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(.5f)
+                    )
+                )
             }
 
             // ── Workflow list from Room ──
@@ -171,8 +216,23 @@ fun DashboardScreen(
                         TextButton(onClick = onNavigateToBuilder) { Text("Create your first workflow →") }
                     }
                 }
+            } else if (filteredWorkflows.isEmpty()) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Filled.SearchOff, contentDescription = null,
+                            modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.primary.copy(.35f))
+                        Spacer(Modifier.height(12.dp))
+                        Text("No results for "$searchQuery"", fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(.5f))
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = { searchQuery = "" }) { Text("Clear search") }
+                    }
+                }
             } else {
-                items(workflows, key = { it.id }) { wf ->
+                items(filteredWorkflows, key = { it.id }) { wf ->
                     WorkflowCard(
                         workflow = wf,
                         onRunClicked = { onRunWorkflow(wf.id) },
