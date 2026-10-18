@@ -3,6 +3,7 @@ package com.example.flowmind.data
 import com.example.flowmind.data.db.RunRecordDao
 import com.example.flowmind.domain.models.RunRecord
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +30,38 @@ class RunRecordRepository @Inject constructor(private val dao: RunRecordDao) {
     suspend fun avgLatencyMs(): Long = dao.avgLatencyMs()?.toLong() ?: 0L
 
     suspend fun localVsCloud(): Pair<Int, Int> = dao.localCount() to dao.cloudCount()
+
+    /**
+     * Deletes every run record from the database, including samples.
+     *
+     * Useful for a "Clear history" action in the Reports screen.
+     */
+    suspend fun clearAll() = dao.deleteAll()
+
+    /**
+     * Returns the number of run records associated with the given [templateId].
+     *
+     * Used to populate per-template run-count badges on the Dashboard.
+     *
+     * @param templateId Template key (e.g. "bill", "lecture", "plant").
+     */
+    suspend fun countByTemplate(templateId: String): Int =
+        dao.countByTemplateId(templateId)
+
+    /**
+     * Returns the single most recent [RunRecord] across all workflows,
+     * or `null` if no records exist.
+     *
+     * Backed by [RunRecordDao.getAllRuns] ordered by `runAt DESC`.
+     */
+    suspend fun mostRecentRun(): RunRecord? = dao.getAllRuns().firstOrNull()?.firstOrNull()
+
+    /**
+     * Returns the total number of run records stored in the database.
+     *
+     * Fast path — delegates to a COUNT query rather than loading all rows.
+     */
+    suspend fun totalRunCount(): Int = dao.successCount() + dao.failureCount()
 
     /** Insert sample rows so the user can see charts without running a real workflow. */
     suspend fun loadSamples(workflowId: String = "sample") {
