@@ -49,3 +49,41 @@ fun Workflow.ageInDays(): Long {
  * Returns `true` when the workflow was created within the last [days] days.
  */
 fun Workflow.isRecent(days: Int = 7): Boolean = ageInDays() < days
+
+/**
+ * Extracts the type prefix (e.g. `"Trigger"`, `"AI"`, `"Action"`) of every node
+ * by splitting on the colon separator in the node title string.
+ *
+ * Returns an empty list when [Workflow.nodesJson] is blank or malformed.
+ */
+fun Workflow.nodeTypes(): List<String> =
+    nodeList().map { title ->
+        title.substringBefore(":").trim().ifBlank { title }
+    }
+
+/**
+ * Returns `true` when the workflow contains at least one node whose title
+ * starts with `"Trigger:"`.
+ */
+fun Workflow.hasTrigger(): Boolean =
+    nodeList().any { it.startsWith("Trigger:", ignoreCase = true) }
+
+/**
+ * Returns `true` when the workflow contains at least one node whose title
+ * starts with `"Action:"`.
+ */
+fun Workflow.hasAction(): Boolean =
+    nodeList().any { it.startsWith("Action:", ignoreCase = true) }
+
+/**
+ * Returns a compact, one-line human-readable summary of the workflow shape.
+ *
+ * Example: `"3 nodes • Trigger → AI → Action • Active"`
+ */
+fun Workflow.summarise(): String {
+    val count = nodeCount()
+    val shape = nodeTypes().joinToString(" → ")
+    val status = statusLabel()
+    return if (shape.isBlank()) "$count node(s) • $status"
+    else "$count nodes • $shape • $status"
+}
