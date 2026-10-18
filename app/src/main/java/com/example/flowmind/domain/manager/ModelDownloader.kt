@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.flow
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DownloadState
@@ -34,6 +35,9 @@ sealed class DownloadState {
 
     /** Download finished; integrity verification is running. */
     object Verifying : DownloadState()
+
+    /** Download is temporarily paused by the user. */
+    object Paused : DownloadState()
 
     /** Download and verification both succeeded. */
     object Success : DownloadState()
@@ -76,6 +80,32 @@ sealed class DownloadState {
  */
 class ModelDownloader(private val maxRetries: Int = 3) {
 
+    // ── Pause / cancel controls ───────────────────────────────────────────────
+
+    private val _isPaused    = AtomicBoolean(false)
+    private val _isCancelled = AtomicBoolean(false)
+
+    /**
+     * Pauses an in-progress download at the next tick boundary.
+     * Call [resume] to continue.
+     */
+    fun pause()  { _isPaused.set(true) }
+
+    /**
+     * Resumes a paused download.
+     */
+    fun resume() { _isPaused.set(false) }
+
+    /**
+     * Cancels the active download. Once cancelled the flow will emit
+     * [DownloadState.Error] and terminate. A new [downloadModel] call
+     * is required to restart.
+     */
+    fun cancel() {
+        _isCancelled.set(true)
+        _isPaused.set(false)   // Unblock any pause loop
+    }
+
     companion object {
         /** Minimum free-storage bytes required before a download is attempted (500 MB). */
         private const val MIN_FREE_BYTES = 500L * 1024 * 1024
@@ -107,6 +137,9 @@ class ModelDownloader(private val maxRetries: Int = 3) {
         expectedSha256: String,
         destination: File
     ): Flow<DownloadState> = flow {
+        _isCancelled.set(false)
+        _isPaused.set(false)
+
         // ── 1. Storage pre-flight check ────────────────────────────────────
         val freeSpace = destination.parentFile?.usableSpace ?: 0L
         if (freeSpace < MIN_FREE_BYTES) {
@@ -118,6 +151,10 @@ class ModelDownloader(private val maxRetries: Int = 3) {
         var succeeded = false
 
         while (attempt < maxRetries && !succeeded) {
+            if (_isCancelled.get()) {
+                emit(DownloadState.Error("Download cancelled by user."))
+                return@flow
+            }
             attempt++
             try {
                 // ── 2. Resume detection ────────────────────────────────────
@@ -125,6 +162,15 @@ class ModelDownloader(private val maxRetries: Int = 3) {
 
                 // ── 3. Simulated chunked download ──────────────────────────
                 while (currentProgress < 100) {
+                    // Honour pause
+                    while (_isPaused.get() && !_isCancelled.get()) {
+                        emit(DownloadState.Paused)
+                        delay(500)
+                    }
+                    if (_isCancelled.get()) {
+                        emit(DownloadState.Error("Download cancelled by user."))
+                        return@flow
+                    }
                     emit(DownloadState.Progress(currentProgress))
                     delay(TICK_DELAY_MS)
                     currentProgress = (currentProgress + CHUNK_INCREMENT).coerceAtMost(100)
