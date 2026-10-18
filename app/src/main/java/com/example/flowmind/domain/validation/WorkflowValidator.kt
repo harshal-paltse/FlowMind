@@ -90,4 +90,42 @@ class WorkflowValidator {
             return ValidationResult.Error("Workflow name must be $MAX_NAME_LENGTH characters or fewer.")
         return ValidationResult.Success
     }
+
+    /**
+     * Runs all validation checks on [nodes] and **collects every error** rather
+     * than returning on the first failure.
+     *
+     * This is preferred for builder UIs that want to show all issues at once
+     * so the user can fix them in a single pass.
+     *
+     * @param nodes The list of [NodeUI] steps to validate.
+     * @return A list of human-readable error messages. Empty list means valid.
+     */
+    fun validateAll(nodes: List<NodeUI>): List<String> {
+        val errors = mutableListOf<String>()
+
+        if (nodes.size < MIN_NODES)
+            errors += "Workflow needs at least $MIN_NODES steps."
+        if (nodes.size > MAX_NODES)
+            errors += "Max $MAX_NODES steps allowed."
+
+        val seen = mutableSetOf<String>()
+        for (node in nodes) {
+            if (node.type !in ALLOWED_NODE_TYPES)
+                errors += "Unknown step type: \"${node.type}\""
+            if (node.title.isBlank())
+                errors += "A step title must not be blank."
+            else if (node.title.length > 100)
+                errors += "Step title too long: \"${node.title}\""
+            if (!seen.add(node.title.trim().lowercase()))
+                errors += "Duplicate step title: \"${node.title}\""
+        }
+
+        if (nodes.none { it.type.startsWith("Trigger:") })
+            errors += "Workflow needs at least one Trigger step."
+        if (nodes.none { it.type.startsWith("Action:") })
+            errors += "Workflow needs at least one Action step (e.g. Notify, Email, Save PDF)."
+
+        return errors
+    }
 }
