@@ -108,7 +108,7 @@ class DryRunSimulator {
                     delay(200)
                 }
 
-                emit(SimulationState.NodeComplete(node, "Output: [Simulated data for $node]"))
+                emit(SimulationState.NodeComplete(node, simulatedOutputFor(node)))
                 completedNodes++
                 delay(300)
             }
@@ -122,6 +122,38 @@ class DryRunSimulator {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Returns a node-type-aware simulated output string for display in the Lab screen.
+     *
+     * The output is derived from the node's type prefix so the dry-run feels
+     * realistic without executing any real ML model.
+     */
+    private fun simulatedOutputFor(nodeName: String): String = when {
+        nodeName.startsWith("Trigger", ignoreCase = true)   ->
+            "✅ Trigger fired — input data captured successfully."
+        nodeName.startsWith("AI: OCR", ignoreCase = true)    ->
+            "📄 OCR extracted 3 text regions with 94% confidence."
+        nodeName.startsWith("AI: STT", ignoreCase = true)    ->
+            "🎤 Speech recognised: \"Schedule meeting at 3 PM tomorrow.\""
+        nodeName.startsWith("AI: LLM", ignoreCase = true)    ->
+            "🤖 LLM generated 128 tokens in 340 ms."
+        nodeName.startsWith("AI: Vision", ignoreCase = true) ->
+            "🌿 Top class: Leaf Blight (82%). Remediation plan generated."
+        nodeName.startsWith("AI: Summar", ignoreCase = true) ->
+            "📝 Summary: 5 key points extracted from 1 200-word input."
+        nodeName.startsWith("Transform", ignoreCase = true)  ->
+            "🔄 Transform applied — output rows: 12."
+        nodeName.startsWith("Action: Notify", ignoreCase = true) ->
+            "🔔 Push notification delivered to device."
+        nodeName.startsWith("Action: Save PDF", ignoreCase = true) ->
+            "📑 PDF written to Downloads/FlowMind_Report.pdf."
+        nodeName.startsWith("Action: Save DB", ignoreCase = true)  ->
+            "💾 Record inserted into local Room database."
+        nodeName.startsWith("Action: Email", ignoreCase = true)    ->
+            "📧 Email dispatched via /v1/notify endpoint."
+        else -> "Output: [Simulated data for $nodeName]"
+    }
 
     /**
      * Attempts to extract node names from [nodesJson].
@@ -141,5 +173,20 @@ class DryRunSimulator {
     }
 
     private fun defaultPipeline() =
-        listOf("Trigger", "Text Extractor", "Condition", "Action: Save DB")
+        listOf("Trigger: Schedule", "AI: OCR", "Transform: Format", "Action: Save PDF")
+}
+
+// ── Top-level helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Builds a human-readable summary from a [SimulationState.Success] result.
+ *
+ * Example: `"✅ Dry-run complete — 4 nodes in 1 842 ms"`
+ *
+ * Returns `null` for any other [SimulationState].
+ */
+fun SimulationState.simulationSummary(): String? {
+    if (this !is SimulationState.Success) return null
+    val seconds = totalTimeMs / 1000.0
+    return "✅ Dry-run complete — $nodeCount node(s) in ${"%.2f".format(seconds)} s"
 }
