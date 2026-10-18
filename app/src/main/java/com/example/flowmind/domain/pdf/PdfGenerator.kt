@@ -182,4 +182,138 @@ class PdfGenerator(private val context: Context) {
         val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
         canvas.drawLine(MARGIN_LEFT, footerY - 10f, PAGE_WIDTH - MARGIN_LEFT, footerY - 10f, linePaint)
     }
+
+    // ── Run summary overload ──────────────────────────────────────────────────
+
+    /**
+     * Generates a structured run-history PDF from a list of [RunRecord]s.
+     *
+     * Each record is rendered as a table row with columns: #, Workflow, Status,
+     * Latency (ms), and Inference (Local/Cloud). A summary footer shows total
+     * run count and average latency.
+     *
+     * Pagination is handled automatically — rows overflow to new A4 pages.
+     *
+     * @param runs  List of [com.example.flowmind.domain.models.RunRecord]s to tabulate.
+     * @return `true` if the PDF was written successfully, `false` on any error.
+     */
+    fun generateRunSummaryReport(
+        runs: List<com.example.flowmind.domain.models.RunRecord>
+    ): Boolean {
+        val pdfDocument = PdfDocument()
+        var pageNumber = 1
+
+        fun startNewPage(): Pair<PdfDocument.Page, Canvas> {
+            val info = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber++).create()
+            val page = pdfDocument.startPage(info)
+            return page to page.canvas
+        }
+
+        val titlePaint = Paint().apply {
+            color = Color.parseColor("#1A237E"); textSize = 20f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true
+        }
+        val headerPaint = Paint().apply {
+            color = Color.WHITE; textSize = 12f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true
+        }
+        val cellPaint = Paint().apply { color = Color.DKGRAY; textSize = 11f; isAntiAlias = true }
+        val footerPaint = Paint().apply { color = Color.GRAY; textSize = 11f; isAntiAlias = true }
+        val rowBg     = Paint().apply { color = Color.parseColor("#F3F4F6") }
+        val headerBg  = Paint().apply { color = Color.parseColor("#3949AB") }
+
+        var (currentPage, canvas) = startNewPage()
+
+        // Title
+        canvas.drawText("FlowMind — Run History Report", MARGIN_LEFT, MARGIN_TOP, titlePaint)
+        val ul = Paint().apply { color = Color.parseColor("#3949AB"); strokeWidth = 2f }
+        canvas.drawLine(MARGIN_LEFT, MARGIN_TOP + 8f, PAGE_WIDTH - MARGIN_LEFT, MARGIN_TOP + 8f, ul)
+
+        // Column widths
+        val cols = floatArrayOf(30f, 170f, 65f, 90f, 90f)
+        val colX = FloatArray(cols.size).also { arr ->
+            arr[0] = MARGIN_LEFT
+            for (i in 1 until cols.size) arr[i] = arr[i - 1] + cols[i - 1]
+        }
+        val rowH = 20f
+        var yPos = MARGIN_TOP + 30f
+
+        // Header row
+        canvas.drawRect(MARGIN_LEFT, yPos, PAGE_WIDTH - MARGIN_LEFT, yPos + rowH, headerBg)
+        val headers = listOf("#", "Workflow", "Status", "Latency", "Inference")
+        headers.forEachIndexed { i, h ->
+            canvas.drawText(h, colX[i] + 4f, yPos + 14f, headerPaint)
+        }
+        yPos += rowH
+
+        // Data rows
+        runs.forEachIndexed { idx, run ->
+            if (yPos + rowH > MARGIN_BOTTOM) {
+                drawFooter(canvas, footerPaint, pageNumber - 1)
+                pdfDocument.finishPage(currentPage)
+                val next = startNewPage(); currentPage = next.first; canvas = next.second
+                yPos = MARGIN_TOP
+            }
+            if (idx % 2 == 0) {
+                canvas.drawRect(MARGIN_LEFT, yPos, PAGE_WIDTH - MARGIN_LEFT, yPos + rowH, rowBg)
+            }
+            val cells = listOf(
+                "${idx + 1}",
+                run.workflowName.take(22),
+                if (run.success) "✓ OK" else "✗ Fail",
+                "${run.latencyMs} ms",
+                if (run.isLocal) "Local" else "Cloud"
+            )
+            cells.forEachIndexed { i, text ->
+                cellPaint.color = when {
+                    i == 2 && run.success  -> Color.parseColor("#2E7D32")
+                    i == 2 && !run.success -> Color.parseColor("#C62828")
+                    else -> Color.DKGRAY
+                }
+                canvas.drawText(text, colX[i] + 4f, yPos + 14f, cellPaint)
+            }
+            yPos += rowH
+        }
+
+        // Summary footer text
+        yPos += 12f
+        val avgMs = if (runs.isEmpty()) 0L else runs.sumOf { it.latencyMs } / runs.size
+        val successCount = runs.count { it.success }
+        val summaryPaint = Paint().apply {
+            color = Color.parseColor("#1A237E"); textSize = 12f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true
+        }
+        canvas.drawText(
+            "Total: ${runs.size} runs • Success: $successCount • Avg latency: ${avgMs} ms",
+            MARGIN_LEFT, yPos, summaryPaint
+        )
+
+        drawFooter(canvas, footerPaint, pageNumber - 1)
+        pdfDocument.finishPage(currentPage)
+
+        var outputStream: java.io.OutputStream? = null
+        return try {
+            val fileName = "FlowMind_RunHistory_${System.currentTimeMillis()}.pdf"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, MIME_PDF)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                outputStream = uri?.let { context.contentResolver.openOutputStream(it) }
+            } else {
+                val file = java.io.File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName
+                )
+                outputStream = java.io.FileOutputStream(file)
+            }
+            outputStream?.use { pdfDocument.writeTo(it) }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace(); false
+        } finally {
+            pdfDocument.close()
+        }
+    }
 }
