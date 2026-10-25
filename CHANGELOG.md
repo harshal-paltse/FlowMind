@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `RunAnalytics.p95LatencyMs()` — 95th-percentile latency via the nearest-rank method; primary SLO indicator for dashboard alerting
+- `RunAnalytics.failureRate()` — complement of `successRate()` guaranteed to sum to 1.0, enabling dual-metric pie charts
+- `RunAnalytics.StreakInfo` data class — bundles `successStreak`, `failureStreak`, and `longestSuccessStreak` into a single coherent value
+- `RunAnalytics.streakInfo()` — single-pass forward/backward scan that populates `StreakInfo`; O(n) with no allocations beyond the result object
+- `AnalyticsSummary` data class — top-level immutable value object bundling all commonly needed metrics (total, rates, latency percentiles, local rate, streak)
+- `List<RunRecord>.toAnalyticsSummary()` — convenience extension that delegates to all `RunAnalytics` helpers and returns an `AnalyticsSummary` in one call; intended for `stateFlow.map { }` in ViewModels
+- `WorkflowValidator.MAX_DESCRIPTION_LENGTH` constant (250 chars) — enforces a DB-safe cap on the optional description field
+- `WorkflowValidator.validateDescription()` — blank descriptions are allowed (field is optional); only non-blank strings exceeding `MAX_DESCRIPTION_LENGTH` produce an error
+- `WorkflowValidator.ValidationSummary` data class — carries `isValid`, `errors`, and `warnings` so the builder UI can render advisory hints alongside hard errors without a separate call
+- `WorkflowValidator.validateSummary()` — combines name, description, and node validation; additionally emits advisory warnings when no AI/Transform node is present or the node count exceeds 20
 - `WorkflowSearchHelper` — pure, stateless object providing ranked fuzzy search across workflow names, template IDs, and node JSON; tiers: exact name (100) → starts-with (80) → contains (60) → template ID (40) → node body (20)
 - `NotificationHelper` — centralised notification dispatcher with three typed channels (`flowmind_runs`, `flowmind_scheduler`, `flowmind_alerts`); exposes `notifyRunComplete`, `notifyScheduledTrigger`, `notifyAlert`, and `cancelAll`; `POST_NOTIFICATIONS` `SecurityException` is silently swallowed for Android 13+ compat
 - `WorkflowExtensions` — `nodeTypes()`, `hasTrigger()`, `hasAction()`, `summarise()` new helpers; `nodeTypes()` extracts the type prefix (Trigger/AI/Transform/Action) of every node; `summarise()` returns a compact one-liner e.g. `"3 nodes • Trigger → AI → Action • Active"`
