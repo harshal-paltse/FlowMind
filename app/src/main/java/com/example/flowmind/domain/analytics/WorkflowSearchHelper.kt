@@ -1,6 +1,7 @@
 package com.example.flowmind.domain.analytics
 
 import com.example.flowmind.domain.models.Workflow
+import com.example.flowmind.domain.models.RunRecord
 
 /**
  * Pure, framework-free helper that provides fuzzy/ranked search over a list of [Workflow]s.
@@ -56,6 +57,64 @@ object WorkflowSearchHelper {
         search(workflows, query)
             .mapNotNull { it.templateId.takeIf { id -> id.isNotBlank() } }
             .distinct()
+
+    /**
+     * Filters [workflows] to only those whose [Workflow.templateId] equals [tag]
+     * (case-insensitive), then applies [search] on top.
+     *
+     * This enables the Dashboard chip-filtered search bar: tapping a template chip
+     * narrows results to that tag before any text-query ranking.
+     *
+     * @param workflows Full workflow list.
+     * @param tag       Template tag to filter by (e.g. "bill", "lecture").
+     * @param query     Optional text query applied on top of the tag filter.
+     * @return          Tag-filtered and text-ranked list.
+     */
+    fun searchByTag(workflows: List<Workflow>, tag: String, query: String = ""): List<Workflow> {
+        val filtered = workflows.filter { it.templateId.equals(tag, ignoreCase = true) }
+        return search(filtered, query)
+    }
+
+    /**
+     * Sorts [workflows] so that the workflow with the most recent run appears first.
+     *
+     * Workflows with no run records are pushed to the end of the list.
+     *
+     * @param workflows  Workflows to sort.
+     * @param runRecords All run records used to determine recency.
+     * @return           Sorted list, most-recently-run first.
+     */
+    fun sortByLastRun(
+        workflows: List<Workflow>,
+        runRecords: List<RunRecord>,
+    ): List<Workflow> {
+        val lastRunAt: Map<String, Long> = runRecords
+            .groupBy { it.workflowId }
+            .mapValues { (_, records) -> records.maxOf { it.runAt } }
+
+        return workflows.sortedByDescending { lastRunAt[it.id] ?: Long.MIN_VALUE }
+    }
+
+    /**
+     * Convenience helper that applies [search] ranking first, then [sortByLastRun]
+     * as a secondary sort within same-score groups.
+     *
+     * Intended for the Dashboard "Recent" tab where text-relevance should still
+     * win, but ties break in favour of the most-recently-run workflow.
+     *
+     * @param workflows  Workflows to search and sort.
+     * @param query      Text query passed to [search].
+     * @param runRecords Run records used to compute recency.
+     */
+    fun searchAndSort(
+        workflows: List<Workflow>,
+        query: String,
+        runRecords: List<RunRecord>,
+    ): List<Workflow> {
+        val searched = search(workflows, query)
+        if (query.isBlank()) return sortByLastRun(searched, runRecords)
+        return searched
+    }
 
     // -------------------------------------------------------------------------
     // Private helpers
