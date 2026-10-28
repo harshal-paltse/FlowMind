@@ -98,3 +98,76 @@ The system ships with pre-compiled reference workflows demonstrating cross-domai
 ---
 ## License
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 6. Developer API Reference
+
+### 6.1 Run Analytics (`domain/analytics/RunAnalytics.kt`)
+
+Stateless helpers computed over an in-memory `List<RunRecord>` snapshot. Use `toAnalyticsSummary()` to get all metrics in one call.
+
+| Function | Returns | Description |
+|---|---|---|
+| `successRate(records)` | `Float` | Fraction of successful runs (0–1) |
+| `failureRate(records)` | `Float` | `1 - successRate` |
+| `averageLatencyMs(records)` | `Long` | Arithmetic mean of `latencyMs` |
+| `medianLatencyMs(records)` | `Long` | Median latency |
+| `p95LatencyMs(records)` | `Long` | 95th-percentile latency (SLO indicator) |
+| `p99LatencyMs(records)` | `Long` | 99th-percentile latency (tail-latency guard) |
+| `stdDevLatencyMs(records)` | `Double` | Population std dev — surface latency jitter |
+| `bestLatencyMs(records)` | `Long` | Minimum observed latency |
+| `worstLatencyMs(records)` | `Long` | Maximum observed latency |
+| `localInferenceRate(records)` | `Float` | Fraction of on-device runs |
+| `streakInfo(records)` | `StreakInfo` | Current + longest success / failure streaks |
+| `groupByDay(records)` | `Map<Long, List<RunRecord>>` | Epoch-day → records (contribution charts) |
+
+```kotlin
+val summary: AnalyticsSummary = runRecords.toAnalyticsSummary()
+```
+
+### 6.2 Workflow Health Score (`domain/analytics/WorkflowHealthScore.kt`)
+
+Composite 0–100 score built from three weighted dimensions:
+
+| Dimension | Weight | Signal |
+|---|---|---|
+| Reliability | 50 pts | `successRate × 50` |
+| Speed | 30 pts | `p95` vs 3 000 ms SLO budget |
+| On-device rate | 20 pts | `localInferenceRate × 20` |
+
+**Grades:** `HEALTHY ≥ 80` · `NEEDS_ATTENTION 60–79` · `CRITICAL < 60`
+
+```kotlin
+val health: WorkflowHealthScore.HealthResult = summary.toHealthResult()
+println("Score ${health.score} — ${health.grade}")
+```
+
+### 6.3 Enhanced Search (`domain/analytics/WorkflowSearchHelper.kt`)
+
+| Function | Description |
+|---|---|
+| `search(workflows, query)` | Ranked fuzzy search (exact → prefix → contains → node) |
+| `searchEnabled(workflows, query)` | Search over enabled-only workflows |
+| `searchByTag(workflows, tag, query)` | Filter by `templateId` chip, then text-rank |
+| `sortByLastRun(workflows, runRecords)` | Sort by most-recent `RunRecord.runAt` |
+| `searchAndSort(workflows, query, runRecords)` | Text rank + recency tiebreak for "Recent" tab |
+| `matchingTemplates(workflows, query)` | Distinct template IDs for filter chip population |
+
+### 6.4 Workflow Archive (`data/WorkflowRepository.kt`)
+
+Soft-archive workflows without permanent deletion:
+
+```kotlin
+// Hide from Dashboard
+repository.archiveWorkflow(id)
+
+// Restore
+repository.unarchiveWorkflow(id)
+
+// Fetch Archive/Trash screen data
+val archived: List<Workflow> = repository.findArchived()
+
+// Dashboard stream — automatically excludes archived rows
+val active: Flow<List<Workflow>> = repository.allActiveWorkflows()
+```

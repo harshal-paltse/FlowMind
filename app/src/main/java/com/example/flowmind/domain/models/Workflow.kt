@@ -16,6 +16,8 @@ import java.util.UUID
  * @property createdAt Epoch millis when first saved.
  * @property updatedAt Epoch millis of last modification; equals [createdAt] on creation.
  * @property isEnabled Whether the workflow is active and should receive triggers.
+ * @property isArchived When true the workflow is hidden from the main list and
+ *   treated as soft-deleted. Archived workflows can be restored or permanently deleted.
  */
 @Entity(tableName = "workflows")
 data class Workflow(
@@ -27,7 +29,8 @@ data class Workflow(
     val edgesJson: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    val isArchived: Boolean = false,
 )
 
 enum class TriggerType { NOTIFICATION, SCHEDULE, CAMERA, MIC, SHARE }

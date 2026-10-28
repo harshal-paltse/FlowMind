@@ -104,6 +104,35 @@ object RunAnalytics {
     }
 
     /**
+     * Returns the 99th-percentile latency across [records].
+     *
+     * Uses the nearest-rank method: `ceil(0.99 * n)`. This is the most stringent
+     * tail-latency indicator — if p99 is within budget the worst 1 % of runs are still acceptable.
+     * Returns 0 when [records] is empty.
+     */
+    fun p99LatencyMs(records: List<RunRecord>): Long {
+        if (records.isEmpty()) return 0L
+        val sorted = records.map { it.latencyMs }.sorted()
+        val rank = kotlin.math.ceil(0.99 * sorted.size).toInt().coerceAtMost(sorted.size) - 1
+        return sorted[rank]
+    }
+
+    /**
+     * Returns the population standard deviation of [RunRecord.latencyMs] across [records].
+     *
+     * A low value means latency is consistent; a high value indicates jitter that may
+     * cause unpredictable user-perceived performance.
+     * Returns 0 when [records] has fewer than 2 entries.
+     */
+    fun stdDevLatencyMs(records: List<RunRecord>): Double {
+        if (records.size < 2) return 0.0
+        val latencies = records.map { it.latencyMs.toDouble() }
+        val mean = latencies.average()
+        val variance = latencies.sumOf { (it - mean) * (it - mean) } / latencies.size
+        return kotlin.math.sqrt(variance)
+    }
+
+    /**
      * Returns the fraction of **failed** runs in [records] as a value between 0.0 and 1.0.
      *
      * Defined as `1 - successRate(records)` so the two metrics always sum to 1.0.
@@ -192,6 +221,8 @@ data class AnalyticsSummary(
     val avgLatencyMs: Long,
     val medianLatencyMs: Long,
     val p95LatencyMs: Long,
+    val p99LatencyMs: Long,
+    val stdDevLatencyMs: Double,
     val bestLatencyMs: Long,
     val worstLatencyMs: Long,
     val localRate: Float,
@@ -209,14 +240,16 @@ data class AnalyticsSummary(
  * ```
  */
 fun List<RunRecord>.toAnalyticsSummary(): AnalyticsSummary = AnalyticsSummary(
-    totalRuns       = size,
-    successRate     = RunAnalytics.successRate(this),
-    failureRate     = RunAnalytics.failureRate(this),
-    avgLatencyMs    = RunAnalytics.averageLatencyMs(this),
-    medianLatencyMs = RunAnalytics.medianLatencyMs(this),
-    p95LatencyMs    = RunAnalytics.p95LatencyMs(this),
-    bestLatencyMs   = RunAnalytics.bestLatencyMs(this),
-    worstLatencyMs  = RunAnalytics.worstLatencyMs(this),
-    localRate       = RunAnalytics.localInferenceRate(this),
-    streak          = RunAnalytics.streakInfo(this),
+    totalRuns        = size,
+    successRate      = RunAnalytics.successRate(this),
+    failureRate      = RunAnalytics.failureRate(this),
+    avgLatencyMs     = RunAnalytics.averageLatencyMs(this),
+    medianLatencyMs  = RunAnalytics.medianLatencyMs(this),
+    p95LatencyMs     = RunAnalytics.p95LatencyMs(this),
+    p99LatencyMs     = RunAnalytics.p99LatencyMs(this),
+    stdDevLatencyMs  = RunAnalytics.stdDevLatencyMs(this),
+    bestLatencyMs    = RunAnalytics.bestLatencyMs(this),
+    worstLatencyMs   = RunAnalytics.worstLatencyMs(this),
+    localRate        = RunAnalytics.localInferenceRate(this),
+    streak           = RunAnalytics.streakInfo(this),
 )
