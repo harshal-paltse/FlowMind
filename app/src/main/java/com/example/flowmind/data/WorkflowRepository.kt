@@ -3,6 +3,7 @@ package com.example.flowmind.data
 import com.example.flowmind.data.db.WorkflowDao
 import com.example.flowmind.domain.models.Workflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,4 +47,37 @@ class WorkflowRepository @Inject constructor(private val dao: WorkflowDao) {
 
     /** Returns the total number of saved workflows without loading row data. */
     suspend fun count(): Int = dao.countWorkflows()
+
+    // -------------------------------------------------------------------------
+    // Archive helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Emits only non-archived workflows, ordered by creation date (newest first).
+     *
+     * This is the primary stream consumed by the Dashboard and should be preferred
+     * over [allWorkflows] in any screen that does not explicitly need archived rows.
+     */
+    fun allActiveWorkflows(): Flow<List<Workflow>> =
+        allWorkflows().map { list -> list.filter { !it.isArchived } }
+
+    /**
+     * Soft-archives the workflow with [id].
+     *
+     * Archived workflows are excluded from [allActiveWorkflows] but can be
+     * restored with [unarchiveWorkflow] or permanently removed with [delete].
+     * Also bumps [Workflow.updatedAt] to reflect the state change.
+     */
+    suspend fun archiveWorkflow(id: String) = dao.updateArchived(id, archived = true)
+
+    /**
+     * Restores a previously archived workflow, making it visible in [allActiveWorkflows] again.
+     */
+    suspend fun unarchiveWorkflow(id: String) = dao.updateArchived(id, archived = false)
+
+    /**
+     * Returns a one-shot list of all archived workflows, ordered by most-recently updated.
+     * Useful for rendering an "Archive" or "Trash" screen.
+     */
+    suspend fun findArchived(): List<Workflow> = dao.findArchived()
 }
