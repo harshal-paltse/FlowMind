@@ -110,6 +110,7 @@ Stateless helpers computed over an in-memory `List<RunRecord>` snapshot. Use `to
 | Function | Returns | Description |
 |---|---|---|
 | `successRate(records)` | `Float` | Fraction of successful runs (0–1) |
+| `failureRate(records)` | `Float` | `1 - successRate` — fraction of failed runs (0–1) |
 | `failureRate(records)` | `Float` | `1 - successRate` |
 | `averageLatencyMs(records)` | `Long` | Arithmetic mean of `latencyMs` |
 | `medianLatencyMs(records)` | `Long` | Median latency |

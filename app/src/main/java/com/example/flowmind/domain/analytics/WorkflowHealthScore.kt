@@ -1,5 +1,7 @@
 package com.example.flowmind.domain.analytics
 
+import com.example.flowmind.domain.models.RunRecord
+
 /**
  * Computes a composite 0–100 **health score** for a workflow from its [AnalyticsSummary].
  *
@@ -50,7 +52,7 @@ object WorkflowHealthScore {
      * [com.example.flowmind.domain.models.RunRecord]s, saving the caller a manual
      * call to [toAnalyticsSummary].
      */
-    fun compute(records: List<com.example.flowmind.domain.models.RunRecord>): HealthResult =
+    fun compute(records: List<RunRecord>): HealthResult =
         compute(records.toAnalyticsSummary())
 
     // -------------------------------------------------------------------------
