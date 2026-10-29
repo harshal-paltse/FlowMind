@@ -96,11 +96,13 @@ object WorkflowSearchHelper {
     }
 
     /**
-     * Convenience helper that applies [search] ranking first, then [sortByLastRun]
-     * as a secondary sort within same-score groups.
+     * Convenience helper that applies [search] ranking first, then uses recency
+     * as a tiebreaker within same-score groups.
      *
-     * Intended for the Dashboard "Recent" tab where text-relevance should still
-     * win, but ties break in favour of the most-recently-run workflow.
+     * When [query] is blank the list is sorted purely by most-recent run.
+     * When [query] is non-blank, text-relevance is the primary sort and recency
+     * breaks ties so that the most-recently-run workflow surfaces first among
+     * equally ranked results.
      *
      * @param workflows  Workflows to search and sort.
      * @param query      Text query passed to [search].
@@ -111,9 +113,22 @@ object WorkflowSearchHelper {
         query: String,
         runRecords: List<RunRecord>,
     ): List<Workflow> {
-        val searched = search(workflows, query)
-        if (query.isBlank()) return sortByLastRun(searched, runRecords)
-        return searched
+        val lastRunAt: Map<String, Long> = runRecords
+            .groupBy { it.workflowId }
+            .mapValues { (_, records) -> records.maxOf { it.runAt } }
+
+        if (query.isBlank()) {
+            return workflows.sortedByDescending { lastRunAt[it.id] ?: Long.MIN_VALUE }
+        }
+
+        val lower = query.trim().lowercase()
+        return workflows
+            .mapNotNull { wf -> score(wf, lower)?.let { s -> Triple(wf, s, lastRunAt[wf.id] ?: Long.MIN_VALUE) } }
+            .sortedWith(
+                compareByDescending<Triple<Workflow, Int, Long>> { it.second }
+                    .thenByDescending { it.third }
+            )
+            .map { it.first }
     }
 
     // -------------------------------------------------------------------------
@@ -125,7 +140,7 @@ object WorkflowSearchHelper {
      *
      * Returns `null` if there is no match at all.
      */
-    private fun score(wf: Workflow, query: String): Int? {
+    internal fun score(wf: Workflow, query: String): Int? {
         val name = wf.name.lowercase()
 
         // Tier 1 — exact name match

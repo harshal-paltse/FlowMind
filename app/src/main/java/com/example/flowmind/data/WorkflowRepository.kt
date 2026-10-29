@@ -3,7 +3,6 @@ package com.example.flowmind.data
 import com.example.flowmind.data.db.WorkflowDao
 import com.example.flowmind.domain.models.Workflow
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -57,9 +56,11 @@ class WorkflowRepository @Inject constructor(private val dao: WorkflowDao) {
      *
      * This is the primary stream consumed by the Dashboard and should be preferred
      * over [allWorkflows] in any screen that does not explicitly need archived rows.
+     *
+     * Filtering is done at the SQL level so Room only emits active rows, avoiding
+     * spurious recompositions when archived workflows change.
      */
-    fun allActiveWorkflows(): Flow<List<Workflow>> =
-        allWorkflows().map { list -> list.filter { !it.isArchived } }
+    fun allActiveWorkflows(): Flow<List<Workflow>> = dao.getAllActiveWorkflows()
 
     /**
      * Soft-archives the workflow with [id].

@@ -37,7 +37,7 @@ object RunAnalytics {
     fun medianLatencyMs(records: List<RunRecord>): Long {
         if (records.isEmpty()) return 0L
         val sorted = records.map { it.latencyMs }.sorted()
-        return sorted[sorted.size / 2]
+        return sorted[(sorted.size - 1) / 2]
     }
 
     /**
