@@ -74,10 +74,12 @@ class WorkflowRepository @Inject constructor(private val dao: WorkflowDao) {
      * Restores a previously archived workflow, making it visible in [allActiveWorkflows] again.
      */
     suspend fun unarchiveWorkflow(id: String) = dao.updateArchived(id, archived = false)
-
     /**
      * Returns a one-shot list of all archived workflows, ordered by most-recently updated.
      * Useful for rendering an "Archive" or "Trash" screen.
      */
+     
     suspend fun findArchived(): List<Workflow> = dao.findArchived()
 }
+
+.
